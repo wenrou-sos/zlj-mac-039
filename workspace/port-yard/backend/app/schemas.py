@@ -46,7 +46,9 @@ class ContainerIn(BaseModel):
 
 class ContainerUpdate(BaseModel):
     """箱档案变更: 尺寸/箱型/货主/免堆天数/关联船期可改;
-    箱号、进出场时间不在字段内, 任何状态(已预约/在场/已出场)都不可被改写"""
+    箱号、进出场时间不在字段内, 任何状态(已预约/在场/已出场)都不可被改写。
+    关键字段不接受 null 覆盖, 不修改的字段应直接省略;
+    仅 vessel_id 允许传 null, 表示解除船期关联。"""
     size: Optional[str] = None
     ctype: Optional[str] = None
     vessel_id: Optional[int] = None
@@ -56,15 +58,33 @@ class ContainerUpdate(BaseModel):
     @field_validator("size")
     @classmethod
     def _size(cls, v):
-        if v is not None and v not in ("20", "40", "45"):
+        if v is None:
+            raise ValueError("尺寸不能为 null，不修改请省略该字段")
+        if v not in ("20", "40", "45"):
             raise ValueError("尺寸仅支持 20/40/45")
         return v
 
     @field_validator("ctype")
     @classmethod
     def _ctype(cls, v):
-        if v is not None and v not in ("GP", "HC", "RF"):
+        if v is None:
+            raise ValueError("箱型不能为 null，不修改请省略该字段")
+        if v not in ("GP", "HC", "RF"):
             raise ValueError("箱型仅支持 GP/HC/RF")
+        return v
+
+    @field_validator("consignee")
+    @classmethod
+    def _consignee(cls, v):
+        if v is None:
+            raise ValueError("货主不能为 null，清空请传空字符串")
+        return v
+
+    @field_validator("free_days")
+    @classmethod
+    def _free_days(cls, v):
+        if v is None:
+            raise ValueError("免堆天数不能为 null，不修改请省略该字段")
         return v
 
 

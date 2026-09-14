@@ -12,15 +12,17 @@ router = APIRouter(prefix="/api/containers", tags=["集装箱"])
 
 def to_out(c: Container) -> dict:
     now = datetime.utcnow()
+    free_days = c.free_days_effective
     days = (now - c.in_time).days if c.in_time and c.status == ContainerStatus.IN_YARD.value else None
     overdue = bool(c.in_time and c.status == ContainerStatus.IN_YARD.value
-                   and now > c.in_time + timedelta(days=c.free_days))
+                   and now > c.in_time + timedelta(days=free_days))
     return {
-        "id": c.id, "container_no": c.container_no, "size": c.size, "ctype": c.ctype,
+        "id": c.id, "container_no": c.container_no,
+        "size": c.size or "", "ctype": c.ctype or "",
         "status": c.status, "vessel_id": c.vessel_id, "position_id": c.position_id,
         "position_code": c.position.code if c.position else None,
         "vessel_name": c.vessel.vessel_name if c.vessel else None,
-        "weight_t": c.weight_t, "consignee": c.consignee, "free_days": c.free_days,
+        "weight_t": c.weight_t, "consignee": c.consignee or "", "free_days": free_days,
         "in_time": c.in_time, "out_time": c.out_time, "has_hold": c.has_hold,
         "overdue": overdue, "days_in_yard": days,
     }
@@ -43,7 +45,7 @@ def overdue_containers(db: Session = Depends(get_db)):
     now = datetime.utcnow()
     containers = db.query(Container).filter(Container.status == ContainerStatus.IN_YARD.value).all()
     return [to_out(c) for c in containers
-            if c.in_time and now > c.in_time + timedelta(days=c.free_days)]
+            if c.in_time and now > c.in_time + timedelta(days=c.free_days_effective)]
 
 
 @router.post("", response_model=ContainerOut)

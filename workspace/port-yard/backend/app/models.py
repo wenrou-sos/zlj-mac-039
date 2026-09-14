@@ -64,6 +64,11 @@ class Container(Base):
     position = relationship("YardPosition", back_populates="container")
     gate_records = relationship("GateRecord", back_populates="container")
 
+    @property
+    def free_days_effective(self) -> int:
+        """免堆天数兜底: 脏数据为 NULL 时按 0 计, 避免超期判定抛异常拖垮列表/看板"""
+        return self.free_days if self.free_days is not None else 0
+
 
 class GateRecord(Base):
     """进出闸记录"""
