@@ -9,6 +9,9 @@ from ..schemas import AppointmentIn, AppointmentOut, RescheduleIn, valid_contain
 
 router = APIRouter(prefix="/api/appointments", tags=["预约"])
 
+# 预约时可随附的箱档案字段(尺寸/箱型/货主/免堆期)
+ARCHIVE_FIELDS = ("size", "ctype", "consignee", "free_days")
+
 
 def window(a: Appointment):
     """到场时段 = 计划时间 ± 容差"""
@@ -62,17 +65,26 @@ def create_appointment(data: AppointmentIn, db: Session = Depends(get_db)):
         raise HTTPException(400, "预约时段已过期，请选择未来的计划时间")
     if data.vessel_id and not db.get(Vessel, data.vessel_id):
         raise HTTPException(404, "船期不存在")
-    # 若箱档案不存在则自动建档(预约即登记)
+    # 预约随附的档案字段: 仅取显式提供的, 未提供的不动
+    archive = {k: getattr(data, k) for k in ARCHIVE_FIELDS if k in data.model_fields_set}
     c = db.query(Container).filter(Container.container_no == no).first()
     if not c:
-        c = Container(container_no=no, vessel_id=data.vessel_id)
+        # 若箱档案不存在则自动建档(预约即登记): 随附字段优先, 未给的走默认值
+        c = Container(container_no=no, vessel_id=data.vessel_id, **archive)
         db.add(c)
     else:
         if c.status == "IN_YARD":
             raise HTTPException(400, "该箱已在场内，无需预约进场")
         if data.vessel_id and not c.vessel_id:
             c.vessel_id = data.vessel_id
-    appt = Appointment(**{**data.model_dump(), "container_no": no})
+        # 已建档: 预约时核对修正档案字段; 箱号与进出场时间不动
+        for k, v in archive.items():
+            setattr(c, k, v)
+    appt = Appointment(
+        container_no=no, vessel_id=data.vessel_id,
+        planned_time=data.planned_time, tolerance_hours=data.tolerance_hours,
+        truck_no=data.truck_no,
+    )
     db.add(appt)
     db.commit()
     db.refresh(appt)

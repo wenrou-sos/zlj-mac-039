@@ -15,7 +15,11 @@ export default function Appointments() {
   const [list, setList] = useState([])
   const [vessels, setVessels] = useState([])
   const [tab, setTab] = useState('')
-  const [form, setForm] = useState({ container_no: '', vessel_id: '', planned_time: '', tolerance_hours: 2, truck_no: '' })
+  const [form, setForm] = useState({
+    container_no: '', vessel_id: '', planned_time: '', tolerance_hours: 2, truck_no: '',
+    size: '40', ctype: 'GP', consignee: '', free_days: 7,
+  })
+  const [archiveHint, setArchiveHint] = useState('')
   const [resched, setResched] = useState(null) // {id, planned_time, tolerance_hours}
   const [msg, setMsg] = useState('')
 
@@ -29,6 +33,30 @@ export default function Appointments() {
   useEffect(load, [tab])
   useEffect(() => { api.get('/vessels').then(setVessels) }, [])
 
+  // 箱号输满后查箱档案: 已建档则回填供核对修正, 未建档提示将按所填信息自动建档
+  useEffect(() => {
+    const no = form.container_no
+    if (no.length !== 11) { setArchiveHint(''); return }
+    let stale = false
+    api.get('/containers?q=' + no).then((list) => {
+      if (stale) return
+      const c = list.find((x) => x.container_no === no)
+      if (c) {
+        setForm((f) => (f.container_no === no ? {
+          ...f, size: c.size || '40', ctype: c.ctype || 'GP',
+          consignee: c.consignee, free_days: c.free_days,
+          vessel_id: f.vessel_id || (c.vessel_id || ''),
+        } : f))
+        setArchiveHint(c.status === 'IN_YARD'
+          ? '⚠️ 该箱已在场内，无需预约进场'
+          : '📋 该箱已建档，档案信息已回填，可核对修正后提交')
+      } else {
+        setArchiveHint('🆕 该箱未建档，提交预约时将按所填尺寸/箱型/货主/免堆期自动建档')
+      }
+    }).catch(() => {})
+    return () => { stale = true }
+  }, [form.container_no])
+
   const submit = async (e) => {
     e.preventDefault()
     setMsg('')
@@ -38,9 +66,14 @@ export default function Appointments() {
         planned_time: toUTCISO(form.planned_time),
         vessel_id: form.vessel_id ? Number(form.vessel_id) : null,
         tolerance_hours: Number(form.tolerance_hours),
+        free_days: Number(form.free_days),
       })
-      setForm({ container_no: '', vessel_id: '', planned_time: '', tolerance_hours: 2, truck_no: '' })
-      setMsg('✅ 预约已创建（若箱号未登记已自动建档）')
+      setForm({
+        container_no: '', vessel_id: '', planned_time: '', tolerance_hours: 2, truck_no: '',
+        size: '40', ctype: 'GP', consignee: '', free_days: 7,
+      })
+      setArchiveHint('')
+      setMsg('✅ 预约已创建（箱档案信息已同步）')
       load()
     } catch (err) { setMsg('❌ ' + err.message) }
   }
@@ -78,8 +111,19 @@ export default function Appointments() {
           onChange={(e) => setForm({ ...form, tolerance_hours: e.target.value })} style={{ width: 70 }} /></label>
         <input placeholder="车牌号" value={form.truck_no}
           onChange={(e) => setForm({ ...form, truck_no: e.target.value })} />
+        <select value={form.size} title="尺寸" onChange={(e) => setForm({ ...form, size: e.target.value })}>
+          <option value="20">20尺</option><option value="40">40尺</option><option value="45">45尺</option>
+        </select>
+        <select value={form.ctype} title="箱型" onChange={(e) => setForm({ ...form, ctype: e.target.value })}>
+          <option value="GP">普通箱</option><option value="HC">高箱</option><option value="RF">冷藏箱</option>
+        </select>
+        <input placeholder="货主" value={form.consignee}
+          onChange={(e) => setForm({ ...form, consignee: e.target.value })} />
+        <input placeholder="免堆天数" type="number" min="0" value={form.free_days} required
+          onChange={(e) => setForm({ ...form, free_days: e.target.value })} style={{ width: 90 }} />
         <button type="submit">创建预约</button>
       </form>
+      {archiveHint && <p className="msg">{archiveHint}</p>}
       {msg && <p className="msg">{msg}</p>}
 
       <div className="toolbar">

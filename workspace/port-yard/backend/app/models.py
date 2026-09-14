@@ -69,6 +69,12 @@ class Container(Base):
         """免堆天数兜底: 脏数据为 NULL 时按 0 计, 避免超期判定抛异常拖垮列表/看板"""
         return self.free_days if self.free_days is not None else 0
 
+    @property
+    def is_default_archive(self) -> bool:
+        """档案是否仍是默认填充值(预约自动建档后未补录): 40尺/GP/免堆7天/无货主"""
+        return (self.size == "40" and self.ctype == "GP"
+                and self.free_days_effective == 7 and not self.consignee)
+
 
 class GateRecord(Base):
     """进出闸记录"""

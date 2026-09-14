@@ -24,7 +24,7 @@ def to_out(c: Container) -> dict:
         "vessel_name": c.vessel.vessel_name if c.vessel else None,
         "weight_t": c.weight_t, "consignee": c.consignee or "", "free_days": free_days,
         "in_time": c.in_time, "out_time": c.out_time, "has_hold": c.has_hold,
-        "overdue": overdue, "days_in_yard": days,
+        "overdue": overdue, "days_in_yard": days, "default_archive": c.is_default_archive,
     }
 
 

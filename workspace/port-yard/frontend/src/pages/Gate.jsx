@@ -8,16 +8,32 @@ export default function Gate() {
   const [outForm, setOutForm] = useState({ container_no: '', truck_no: '', driver: '', gate: 'G1', pickup_no: '' })
   const [records, setRecords] = useState([])
   const [msg, setMsg] = useState({ in: '', out: '' })
+  const [inWarn, setInWarn] = useState('')
 
   const load = () => api.get('/gate/records?limit=50').then(setRecords).catch(alert)
   useEffect(load, [])
+
+  // 办理进闸前: 箱号输满即查档案, 仍是默认值(未补录)则提前提示
+  useEffect(() => {
+    const no = inForm.container_no
+    if (no.length !== 11) { setInWarn(''); return }
+    let stale = false
+    api.get('/containers?q=' + no).then((list) => {
+      if (stale) return
+      const c = list.find((x) => x.container_no === no)
+      setInWarn(c && c.default_archive
+        ? '⚠️ 该箱档案仍是默认值（40尺/GP/免堆7天/无货主），堆位分配与超期判定可能不准，建议先在预约或集装箱管理中核对修正'
+        : '')
+    }).catch(() => {})
+    return () => { stale = true }
+  }, [inForm.container_no])
 
   const doIn = async (e) => {
     e.preventDefault()
     setMsg({ ...msg, in: '' })
     try {
       const r = await api.post('/gate/in', inForm)
-      setMsg({ ...msg, in: `✅ 进闸成功，${r.remark}` })
+      setMsg({ ...msg, in: `✅ 进闸成功，${r.remark}` + (r.warning ? ` ⚠️ ${r.warning}` : '') })
       setInForm({ ...inForm, container_no: '' })
       load()
     } catch (err) { setMsg({ ...msg, in: '❌ ' + err.message }); load() }
@@ -51,6 +67,7 @@ export default function Gate() {
             <option>G1</option><option>G2</option>
           </select>
           <button type="submit">办理进闸</button>
+          {inWarn && <p className="msg">{inWarn}</p>}
           {msg.in && <p className="msg">{msg.in}</p>}
         </form>
 

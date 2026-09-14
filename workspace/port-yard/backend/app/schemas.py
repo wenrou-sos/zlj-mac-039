@@ -106,14 +106,16 @@ class ContainerOut(BaseModel):
     has_hold: bool
     overdue: bool = False
     days_in_yard: Optional[int] = None
+    default_archive: bool = False   # 档案是否仍是默认填充值(未补录)
 
     class Config:
         from_attributes = True
 
 
-class AppointmentIn(BaseModel):
+class AppointmentIn(ContainerUpdate):
+    """进场预约: 可同时登记/修正箱档案的尺寸、箱型、货主、免堆期(均可选);
+    未提供的字段在新档案中走默认值, 已建档则保持不变"""
     container_no: str
-    vessel_id: Optional[int] = None
     planned_time: datetime
     tolerance_hours: int = 2
     truck_no: str = ""
@@ -176,6 +178,7 @@ class GateRecordOut(BaseModel):
     time: datetime
     result: str
     remark: str
+    warning: Optional[str] = None   # 进闸时对仍是默认值的档案给出提示
     class Config:
         from_attributes = True
 

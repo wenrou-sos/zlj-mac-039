@@ -81,7 +81,12 @@ def gate_in(req: GateInRequest, db: Session = Depends(get_db)):
                   f"分配堆位 {pos.code}")
     db.commit()
     db.refresh(rec)
-    return rec
+    warning = None
+    if c.is_default_archive:
+        warning = ("该箱档案仍为默认值(40尺/GP/免堆7天/无货主)，"
+                   "请核对尺寸、箱型、货主与免堆期，避免堆位分配与超期判定出错")
+    return {**{col.name: getattr(rec, col.name) for col in GateRecord.__table__.columns},
+            "container_no": no, "warning": warning}
 
 
 @router.post("/out", response_model=GateRecordOut)
